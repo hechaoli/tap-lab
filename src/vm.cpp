@@ -20,10 +20,11 @@ void VirtualMachine::HandleIngressArp() {
     string src_ip = IpUtil::IpBytesToString(arp_ipv4.arp_sip);
     if (arp_hdr.arp_op == ARP_OP_REQUEST) {
         string dst_ip = IpUtil::IpBytesToString(arp_ipv4.arp_tip);
-        cout << "Received ARP request: [Who has " << dst_ip
+        cout << "[" << ip << "] Received ARP request: [Who has " << dst_ip
              << "? Tell " << src_ip << "]" << endl;
         if (ip == dst_ip) {
-            cout << "Sending ARP reply: [" << dst_ip << " is at " << mac << "]" << endl;
+            cout << "[" << ip << "] Sending ARP reply: [" << dst_ip
+                 << " is at " << mac << "]" << endl;
             SendArp(src_ip, src_mac, ARP_OP_REPLY);
         } else {
             cout << "[" << ip.size() << "] Ignore the ARP request " << dst_ip.size() << endl;
@@ -82,7 +83,7 @@ void VirtualMachine::Init() {
     icmp_seq = 1;
     // Right now we only support ingress ARP and ICMP packets
     auto loop = [&]() {
-        cout << "VM [" << ip << ", " << mac << " starts running." << endl;
+        cout << "VM [" << ip << ", " << mac << "] starts running." << endl;
         while (true) {
             struct eth_hdr eth_hdr;
             RecvFromNetwork((uint8_t *)&eth_hdr, sizeof(eth_hdr));
@@ -121,7 +122,7 @@ void VirtualMachine::SendArp(const string& dst_ip, const string &dst_mac,
     uint8_t buf[ETH_HDR_LEN + ARP_HDR_LEN + ARP_IPV4_LEN] = {0};
     // Ethernet header
     struct eth_hdr *eth_hdr = (struct eth_hdr *) buf;
-    EthUtil::CreateEtherHeader(mac, kEthBroadcastAddr, ETH_P_ARP, eth_hdr);
+    EthUtil::CreateEtherHeader(mac, dst_mac, ETH_P_ARP, eth_hdr);
 
     // ARP Header
     struct arp_hdr *arp_hdr = (struct arp_hdr *)(eth_hdr + 1);
@@ -165,14 +166,16 @@ void VirtualMachine::SendIcmp(const string &dst_ip, const string &dst_mac,
  *
  * @param dst_ip[in] the IP address to ping
  */
-void VirtualMachine::ping(const string &dst_ip) {
-    cout << "[" << ip << "] Sending ARP request to "
-         << dst_ip << "..." << endl;
-    SendArp(dst_ip, kEthBroadcastAddr, ARP_OP_REQUEST);
-    cout << "[" << ip << "] Waiting for ARP reply from "
-         << dst_ip << "..." << endl;
+void VirtualMachine::Ping(const string &dst_ip) {
     unique_lock<mutex> arp_lock(arp_table_mutex);
-    arp_cv.wait(arp_lock, [&]{ return arp_table.find(dst_ip) != arp_table.end(); });
+    if (arp_table.find(dst_ip) == arp_table.end()) {
+        cout << "[" << ip << "] Sending ARP request to "
+             << dst_ip << "..." << endl;
+        SendArp(dst_ip, kEthBroadcastAddr, ARP_OP_REQUEST);
+        cout << "[" << ip << "] Waiting for ARP reply from "
+             << dst_ip << "..." << endl;
+        arp_cv.wait(arp_lock, [&]{ return arp_table.find(dst_ip) != arp_table.end(); });
+    }
 
     string dst_mac = arp_table[dst_ip];
     uint16_t id = icmp_id++, seq_num = icmp_seq++;

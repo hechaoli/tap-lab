@@ -17,8 +17,8 @@ int main() {
     // Wait for the VM to start
     this_thread::sleep_for (std::chrono::seconds(1));
     // Ping VM2 from VM1
-    vm1->ping(ip2);
-    //vm2->ping(ip1);
+    vm1->Ping(ip2);
+    //vm2->Ping(ip1);
 
     this_thread::sleep_for (std::chrono::seconds(300));
     return 0;

@@ -47,7 +47,7 @@ class VirtualMachine {
         VirtualMachine(string mac, string ip, int tap_fd)
             : mac(mac), ip(ip), tap_fd(tap_fd) { Init(); }
         ~VirtualMachine() { Deinit(); }
-        void ping(const string& ip);
+        void Ping(const string& ip);
         void SendToVm(const uint8_t *buf, size_t len);
 };
 
